@@ -1,49 +1,82 @@
+
 import { VercelRequest, VercelResponse } from '@vercel/node'
+import _ from 'lodash'
+import express from 'express'
+import finalHandler from 'finalhandler'
+import jsonServer from 'json-server'
 import load from '../utils/load'
-// import fetch from 'node-fetch'
 
-// const options = {
-//   "headers": {
-//     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-//     "accept-language": "en-US,en;q=0.9,zh;q=0.8,zh-CN;q=0.7",
-//     "cache-control": "max-age=0",
-//     "sec-fetch-dest": "document",
-//     "sec-fetch-mode": "navigate",
-//     "sec-fetch-site": "none",
-//     "sec-fetch-user": "?1",
-//     "upgrade-insecure-requests": "1"
-//   },
-//   "referrerPolicy": "strict-origin-when-cross-origin",
-//   "body": null,
-//   "method": "GET",
-//   "mode": "cors",
-// }
+const expressRouter = express.Router()
 
-// function doFetch() {
-//   const targetUrl = 'https://raw.sevencdn.com/typicode/demo/master/db.json'
-//   console.log('targetUrl: ', targetUrl)
-//   return fetch(targetUrl, options)
-//     .then(r => r.text())
-// }
+class Router {
+  public user: string
+  public repo: string
+  public model: string
+  public method: string
+
+  constructor(req: VercelRequest) {
+    const sourceUrl = new URL(req.url, 'http://localhost')
+    const path = sourceUrl.pathname.split('/')
+
+    this.user = path[1]
+    this.repo = path[2]
+    this.model = path[3]
+    this.method = req.method || ''
+  }
+
+  get(route, callback) {
+    if (this.method.toLowerCase() === 'get') {
+      if (route === this.model) {
+        callback()
+      }
+    }
+  }
+}
 
 export default async function (req: VercelRequest, res: VercelResponse) {
-  const sourceUrl = new URL(req.url, 'http://localhost')
+  const r = new Router(req)
 
-  const [a,b, user, repo] = sourceUrl.pathname.split('/')
+  if (!r.user || !r.repo) {
+    res.status(404).send(`Not found /${r.user}/${r.repo}`)
 
-  if (!user || !repo) {
-    res.status(404).send(`Not found /${user}/${repo}`)
     return
   }
 
   try {
-    const db = await load(`https://raw.sevencdn.com/${user}/${repo}/master/db.json`)
-    console.log('req.query', sourceUrl.pathname)
-    res.send(db.getState())
+    const db = await load(`https://raw.sevencdn.com/${r.user}/${r.repo}/main/db.json`)
+    // @ts-ignore
+    res.locals = res.locals || Object.create(null);
+    // @ts-ignore
+    res.jsonp = res.json;
+    // @ts-ignore
+    req.get = key => req.headers[key]
+    // @ts-ignore
+    res.get = res.getHeader
+    // @ts-ignore
+    res.set = res.setHeader
+    // @ts-ignore
+    res.links = express.response.links.bind(res)
+
+    const router = jsonServer.router(db)
+
+    // TODO, it's not work to handle root
+    router.get('/', (req, res) => {
+      console.log('root')
+      res.jsonp(db.getState());
+    });
+
+    // final handler
+    const done = finalHandler(req as any, res as any, {
+      env: 'dev',
+      onerror: e => {
+        console.error(e)
+      }
+    });
+
+    expressRouter.use(`/${r.user}/${r.repo}`, router).handle(req, res, done);
   } catch(e) {
-    res.status(500).send(e)
+    console.log('==================')
+    console.error(e.stack)
+    res.status(500).send(e.stack)
   }
-  // doFetch().then(t => {
-  //   res.send(t)
-  // })
 }

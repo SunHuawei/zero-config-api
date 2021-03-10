@@ -23,14 +23,19 @@ export default function (source): Promise<low.LowdbSync<any>> {
           })
 
           res.on('end', () => {
-            resolve(low(new Memory(undefined)).setState(JSON.parse(dbData)))
+            try {
+              const json = JSON.parse(dbData)
+              resolve(low(new Memory(undefined)).setState(json))
+            } catch(e) {
+              return reject(e)
+            }
           })
         })
         .on('error', (error) => {
           return reject(error)
         })
     } else {
-      throw new Error(`Unsupported source ${source}`)
+      return reject(`Unsupported source ${source}`)
     }
   })
 }

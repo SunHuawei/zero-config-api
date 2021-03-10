@@ -4,11 +4,12 @@
     "build": "mkdir -p public && echo 'hello from index.txt' > public/index2.txt"
   },
   "dependencies": {
-    "@vercel/node": "^1.9.1",
     "@types/lowdb": "^1.0.9",
+    "@vercel/node": "^1.9.1",
     "chalk": "^4.1.0",
     "http-proxy-agent": "^4.0.1",
     "json-server": "^0.16.3",
+    "lodash": "^4.17.21",
     "lowdb": "^1.0.0",
     "node-fetch": "^2.6.1"
   },
